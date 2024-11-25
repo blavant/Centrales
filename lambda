@@ -1,0 +1,125 @@
+clear all
+clc
+
+%% Relación estequiometrica lambda=1
+% El programa se puede utilizar para cual hidrocarburo CxHy
+%Entalpias de formación
+hf_02=0; %% kj/kmol
+hf_N2=0; %% kj/kmol
+hf_C=0; %% kj/kmol
+hf_CO=-110500; %% kj/kmol
+hf_CO2=-393500; %% kj/kmol
+hf_H2=0; %% kj/kmol
+hf_H2O_gas=-241800; %% kj/kmol
+hf_H2O_liq=-285800; %% kj/kmol
+hf_C16H34=-454500; %% kj/kmol
+
+%% Pesos moleculares
+M_C16H34=226.44; %% kg/kmol
+M_CO2=44.01; %% kg/kmol
+M_02=32; %% kg/kmol
+M_N2=28.01; %% kg/kmol
+%% Datos de entrada
+x=16;
+y=34;
+lambda_1=1;
+
+%% Moles de cada compuesto (Productos)
+a=x; %% C02
+b=y/2; %% H2O
+c=(lambda_1-1)*(x+(y/4)); %% 02
+d=lambda_1*3.76*(x+(y/4)); %% N2
+
+%% Moles de cada compuesto (Reactantes)
+e=lambda_1*(x+(y/4)); %% O2
+f=lambda_1*3.76*(x+(y/4)); %% N2
+
+%% Sumatoria de productos y reactantes
+Suma_P=a*hf_CO2+17*hf_H2O_gas+d*hf_N2;
+Suma_R=hf_C16H34+e*hf_02+f*hf_N2;
+
+%% Poder calorifico inferior PCI
+PCI=(abs(Suma_P-Suma_R)/M_C16H34)*0.239; %% Kcal/kg
+
+
+%% Exceso de Aire lambda=2.25
+z=[0.1:0.1:4]; %AUMENTO DEL LAMBDA
+for j=1:length(z)
+lambda_2(j)=1+z(j); %% VARIABLE QUE QUEREMOS VARIAR
+T_chim=227+273; %% k VARIABLE QUE QUEREMOS VARIAR
+T_air=25+273; %% k VARIABLE QUE QUEREMOS VARIAR
+%% Moles de cada compuesto (Productos)
+a_02=x; %% C02
+b_02=y/2; %% H2O
+c_02(j)=(lambda_2(j)-1)*(x+(y/4)); %% 02
+d_02(j)=lambda_2(j)3.76(x+(y/4)); %% N2
+
+%% Moles de cada compuesto (Reactantes)
+e_02(j)=lambda_2(j)*(x+(y/4)); %% O2
+f_02(j)=lambda_2(j)3.76(x+(y/4)); %% N2
+
+%% Sumatoria de productos y reactantes
+[h_02_humos] = A02_Props_C02(T_chim);
+[h_02_air] = A02_Props_C02(T_air);
+[h_H2O_humos] = A03_Props_H20(T_chim)
+[h_H2O_air] = A03_Props_H20(T_air)
+[h_02_humos] = A01_Props_02(T_chim)
+[h_02_air] = A01_Props_02(T_air)
+[h_N2_humos] = A04_Props_N2(T_chim)
+[h_N2_air] = A04_Props_N2(T_air)
+Suma_P_real(j)=a_02*(hf_CO2+(h_02_humos-h_02_air))+b_02*(hf_H2O_gas+(h_H2O_humos-h_H2O_air))+c_02(j)(hf_02+(h_02_humos-h_02_air))+d_02(j)(hf_N2+(h_N2_humos-h_N2_air));
+Suma_R_real=Suma_R; %% kj/kmol
+
+%% Calor de combustión
+Q_comb(j)=(abs(Suma_P_real(j)-Suma_R_real)/M_C16H34)*0.239; %% Kcal/kg
+
+%% Rendimiento de la COMBUSTIÓN
+eta_comb(j)=Q_comb(j)/PCI;
+
+%% PERDIDAS
+%% Perdidas por gases secos
+m_gas_seco(j)=(a_02*M_CO2+c_02(j)*M_02+d_02(j)*M_N2)/M_C16H34; %% kg/kg comb
+cp_gas_seco=0.25/0.239; %% Kj/kg*k
+H_1(j)=m_gas_seco(j)cp_gas_seco(T_chim-T_air); %% KJ/kg
+
+%% Perdidas por humedad del combustible
+Fluid='water'
+T_1=T_air;
+T_2=T_chim;
+H_agua_sat=Props('H','T',T_1,'Q',0,Fluid);
+H_agua_sobre=Props('H','T',T_2,'Q',1,Fluid);
+m_agua_comb=0.02; %% KG/KG comb
+H_2=m_agua_comb*(H_agua_sobre-H_agua_sat); %% KJ/kg
+
+%% Perdidas por humedad del aire
+P_sistema=Props('P','T',T_1,'Q',0,Fluid);
+P_total=101.3; %% kpa
+Rho=0.75; %% Humedad relativa
+X=0.622*P_sistema/((P_total/Rho)-P_sistema);
+m_agua_air_seco(j)=(e_02(j)*M_02+f_02(j)*M_N2)/M_C16H34; %% Kg/kg comb
+m_agua_air(j)=X*m_agua_air_seco(j); %% Kg/kg comb
+Tm=(T_chim+T_air)/2; %% Kelvin
+cp_agua=Props('C','T',Tm,'Q',0,Fluid); %[kJ/kg-K]
+H_3(j)=m_agua_air(j)cp_agua(T_chim-T_air); %% KJ/kg 
+
+%% Sumatoria de las perdidas
+Suma_perdidas(j)=(H_1(j)+H_2+H_3(j))*0.239; %% Kcal/kg
+
+%% Rendimiento de CALDERA
+eta_cal(j)=1-(Suma_perdidas(j)/Q_comb(j));
+end
+%% GRÁFICOS
+figure(1)
+plot(lambda_2,eta_cal)
+xlabel('Exceso de aire \lambda') 
+ylabel('Rendimiento de la caldera (%)') 
+
+figure(2)
+plot(lambda_2,eta_comb)
+xlabel('Exceso de aire \lambda') 
+ylabel('Rendimiento de la Combustión (%)') 
+
+figure(3)
+plot(lambda_2,Q_comb)
+xlabel('Exceso de aire \lambda') 
+ylabel('Calor de la combustión (Kcal/Kg)')
